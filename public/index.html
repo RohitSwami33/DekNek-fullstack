@@ -18,6 +18,8 @@
     .btn { width: 100%; padding: 0.9rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
     .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4); }
     .btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+    .btn-secondary { background: #6c757d; margin-top: 0.5rem; font-size: 0.9rem; padding: 0.6rem; }
+    .btn-secondary:hover { box-shadow: 0 8px 25px rgba(108, 117, 125, 0.4); }
     .toggle { text-align: center; margin-top: 1.5rem; color: #666; }
     .toggle a { color: #667eea; text-decoration: none; font-weight: 600; cursor: pointer; }
     .error { background: #fee; color: #c00; padding: 0.8rem; border-radius: 8px; margin-bottom: 1rem; text-align: center; border: 1px solid #fcc; }
@@ -30,6 +32,8 @@
     .logout-btn { background: #dc3545; margin-top: 1rem; }
     .logout-btn:hover { background: #c82333; box-shadow: 0 8px 25px rgba(220, 53, 69, 0.4); }
     .hidden { display: none !important; }
+    .otp-info { text-align: center; color: #666; font-size: 0.9rem; margin-bottom: 1rem; }
+    .timer { text-align: center; color: #666; font-size: 0.85rem; margin-top: 0.5rem; }
   </style>
 </head>
 <body>
@@ -75,6 +79,20 @@
           Already have an account? <a onclick="showLogin()">Login</a>
         </div>
       </div>
+
+      <div id="verifyForm" class="hidden">
+        <p class="otp-info">We've sent a 6-digit code to your email</p>
+        <div class="form-group">
+          <label>Enter Verification Code</label>
+          <input type="text" id="verifyOtp" placeholder="Enter 6-digit code" maxlength="6" required>
+        </div>
+        <button class="btn" onclick="verifyOTP()">Verify Email</button>
+        <button class="btn btn-secondary" onclick="resendOTP()">Resend Code</button>
+        <div id="otpTimer" class="timer"></div>
+        <div class="toggle">
+          Changed email? <a onclick="showSignup()">Go back</a>
+        </div>
+      </div>
     </div>
 
     <div id="dashboard" class="dashboard">
@@ -90,6 +108,8 @@
 
   <script>
     const API_URL = window.location.origin;
+    let pendingUserId = null;
+    let otpTimerInterval = null;
 
     function showMessage(text, type = 'error') {
       const box = document.getElementById('messageBox');
@@ -99,14 +119,55 @@
 
     function showSignup() {
       document.getElementById('loginForm').classList.add('hidden');
+      document.getElementById('verifyForm').classList.add('hidden');
       document.getElementById('signupForm').classList.remove('hidden');
       document.getElementById('messageBox').innerHTML = '';
+      clearOTP_timer();
     }
 
     function showLogin() {
       document.getElementById('signupForm').classList.add('hidden');
+      document.getElementById('verifyForm').classList.add('hidden');
       document.getElementById('loginForm').classList.remove('hidden');
       document.getElementById('messageBox').innerHTML = '';
+      clearOTP_timer();
+    }
+
+    function showVerifyForm(userId) {
+      pendingUserId = userId;
+      document.getElementById('signupForm').classList.add('hidden');
+      document.getElementById('loginForm').classList.add('hidden');
+      document.getElementById('verifyForm').classList.remove('hidden');
+      document.getElementById('messageBox').innerHTML = '';
+      startOTP_timer(600);
+    }
+
+    function startOTP_timer(seconds) {
+      clearOTP_timer();
+      let remaining = seconds;
+      updateTimerDisplay(remaining);
+      otpTimerInterval = setInterval(() => {
+        remaining -= 1;
+        if (remaining <= 0) {
+          clearOTP_timer();
+          document.getElementById('otpTimer').textContent = 'Code expired. Click Resend Code.';
+        } else {
+          updateTimerDisplay(remaining);
+        }
+      }, 1000);
+    }
+
+    function updateTimerDisplay(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      document.getElementById('otpTimer').textContent = `Code expires in ${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    function clearOTP_timer() {
+      if (otpTimerInterval) {
+        clearInterval(otpTimerInterval);
+        otpTimerInterval = null;
+      }
     }
 
     async function signup() {
@@ -144,7 +205,53 @@
         const data = await res.json();
         if (res.ok) {
           showMessage(data.message, 'success');
+          showVerifyForm(data.userId);
+        } else {
+          showMessage(data.message);
+        }
+      } catch (err) {
+        showMessage('Connection error');
+      }
+    }
+
+    async function verifyOTP() {
+      const otp = document.getElementById('verifyOtp').value;
+
+      if (!otp || otp.length !== 6) {
+        showMessage('Please enter a 6-digit code');
+        return;
+      }
+
+      try {
+        const res = await fetch(API_URL + '/api/verify-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: pendingUserId, otp })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          clearOTP_timer();
+          showMessage(data.message, 'success');
           setTimeout(showLogin, 1000);
+        } else {
+          showMessage(data.message);
+        }
+      } catch (err) {
+        showMessage('Connection error');
+      }
+    }
+
+    async function resendOTP() {
+      try {
+        const res = await fetch(API_URL + '/api/resend-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: pendingUserId })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          showMessage(data.message, 'success');
+          startOTP_timer(600);
         } else {
           showMessage(data.message);
         }
@@ -173,6 +280,9 @@
           localStorage.setItem('token', data.token);
           localStorage.setItem('username', data.username);
           showDashboard();
+        } else if (data.requiresVerification) {
+          showMessage(data.message);
+          showVerifyForm(data.userId);
         } else {
           showMessage(data.message);
         }
