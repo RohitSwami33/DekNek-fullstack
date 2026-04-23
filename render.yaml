@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: deknek-fullstack
+    env: node
+    region: oregon
+    plan: free
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: MONGODB_URI
+        value: mongodb+srv://privatestudent33_db_user:OCFCUirWjPEDfv9B@cluster0.ufc0yad.mongodb.net/?appName=Cluster0
+      - key: JWT_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production
