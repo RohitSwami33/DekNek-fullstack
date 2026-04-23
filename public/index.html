@@ -119,6 +119,22 @@
         return;
       }
 
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        showMessage('Please enter a valid email address');
+        return;
+      }
+
+      if (password.length < 8) {
+        showMessage('Password must be at least 8 characters');
+        return;
+      }
+
+      if (username.length < 3) {
+        showMessage('Username must be at least 3 characters');
+        return;
+      }
+
       try {
         const res = await fetch(API_URL + '/api/register', {
           method: 'POST',

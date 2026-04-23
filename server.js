@@ -31,7 +31,17 @@ app.post('/api/register', async (req, res) => {
   try {
     const { username, email, password } = req.body;
     if (!username || !email || !password) {
-      return res.status(400).json({ message: 'All fields required' });
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: 'Please enter a valid email address' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    }
+    if (username.length < 3) {
+      return res.status(400).json({ message: 'Username must be at least 3 characters' });
     }
     const existing = await User.findOne({ $or: [{ email }, { username }] });
     if (existing) {
@@ -42,6 +52,7 @@ app.post('/api/register', async (req, res) => {
     await user.save();
     res.status(201).json({ message: 'User registered successfully' });
   } catch (err) {
+    console.error('Register error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
